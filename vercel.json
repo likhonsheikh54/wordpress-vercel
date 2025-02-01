@@ -1,10 +1,15 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "public/**", "use": "@vercel/static" },
-    { "src": "api/**/*.php", "use": "@vercel/php" }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "/public/index.php" }
-  ]
+  "functions": {
+    "api/*.php": {
+      "runtime": "vercel-php@0.6.0"
+    }
+  },
+  "routes": [{ "src": "/(.*)", "dest": "/api/index.php" }],
+  "build": {
+    "env": {
+      "NOW_PHP_DEBUG": "1"
+    }
+  }
 }
+
