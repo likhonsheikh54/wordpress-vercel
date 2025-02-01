@@ -1,0 +1,76 @@
+name: Setup WordPress for Vercel
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  setup-wordpress:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.0'
+
+    - name: Download WordPress
+      run: |
+        wget https://wordpress.org/wordpress-6.7.1.zip
+        unzip wordpress-6.7.1.zip
+        rm wordpress-6.7.1.zip
+
+    - name: Setup Vercel structure
+      run: |
+        mkdir -p public api
+        mv wordpress/* public/
+        mv public/wp-config-sample.php api/wp-config.php
+
+    - name: Modify wp-config.php
+      run: |
+        sed -i 's/database_name_here/\$_ENV["MYSQL_DATABASE"]/' api/wp-config.php
+        sed -i 's/username_here/\$_ENV["MYSQL_USER"]/' api/wp-config.php
+        sed -i 's/password_here/\$_ENV["MYSQL_PASSWORD"]/' api/wp-config.php
+        sed -i 's/localhost/\$_ENV["MYSQL_HOST"]/' api/wp-config.php
+        echo "
+        define('WP_HOME', 'https://' . \$_SERVER['HTTP_HOST']);
+        define('WP_SITEURL', 'https://' . \$_SERVER['HTTP_HOST'] . '/wordpress');
+        define('DISALLOW_FILE_MODS', true);
+        define('FORCE_SSL_ADMIN', true);
+        define('AUTOMATIC_UPDATER_DISABLED', true);
+        ini_set('memory_limit', '256M');" >> api/wp-config.php
+
+    - name: Create vercel.json
+      run: |
+        echo '{
+          "version": 2,
+          "builds": [
+            { "src": "public/**", "use": "@vercel/static" },
+            { "src": "api/**/*.php", "use": "@vercel/php" }
+          ],
+          "routes": [
+            { "src": "/(.*)", "dest": "/public/index.php" }
+          ]
+        }' > vercel.json
+
+    - name: Create index.php
+      run: |
+        echo '<?php
+        require_once("wordpress/wp-load.php");
+        wp();' > public/index.php
+
+    - name: Commit changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Setup WordPress for Vercel deployment" -a
+
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref }}
+
